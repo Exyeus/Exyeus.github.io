@@ -1,0 +1,232 @@
+---
+import { Icon } from "astro-icon/components";
+import type { MarkdownHeading } from "astro";
+import { pathsEqual, url } from "../../utils/url-utils";
+import Categories from "./Categories.astro";
+import Profile from "./Profile.astro";
+import SidebarNav from "./SidebarNav.astro";
+import Tag from "./Tags.astro";
+
+interface Props {
+	class?: string;
+	headings?: MarkdownHeading[];
+}
+
+const className = Astro.props.class;
+const isAboutPage = pathsEqual(Astro.url.pathname, url("/about/"));
+---
+
+<app-sidebar id="sidebar-shell" class:list={[className]}>
+	<div id="sidebar-rail" class="card-base">
+		<button
+			id="sidebar-toggle"
+			type="button"
+			aria-label="Toggle sidebar"
+			aria-expanded="false"
+			class="btn-plain scale-animation rounded-xl h-11 w-11 active:scale-90 mt-2"
+		>
+			<Icon name="material-symbols:menu-rounded" class="text-[1.25rem]"></Icon>
+		</button>
+	</div>
+
+	<aside id="sidebar-panel">
+		<div id="sidebar-scroll" class="flex flex-col w-full gap-4">
+			<SidebarNav></SidebarNav>
+			{isAboutPage && <Profile></Profile>}
+			<Categories class="onload-animation" style="animation-delay: 150ms"></Categories>
+			<Tag class="onload-animation" style="animation-delay: 200ms"></Tag>
+		</div>
+	</aside>
+
+	<button
+		id="sidebar-overlay"
+		type="button"
+		aria-label="Close sidebar"
+		tabindex="-1"
+	></button>
+</app-sidebar>
+
+<style is:global>
+	:root {
+		--sidebar-open-width: 17.5rem;
+		--sidebar-rail-width: 3.5rem;
+	}
+
+	#sidebar-shell {
+		position: sticky;
+		top: 1rem;
+		align-self: flex-start;
+		width: var(--sidebar-open-width);
+		min-width: var(--sidebar-open-width);
+		height: calc(100vh - 2rem);
+		z-index: 55;
+	}
+
+	#sidebar-rail {
+		display: none;
+	}
+
+	#sidebar-panel {
+		width: 100%;
+		height: calc(100vh - 2rem);
+	}
+
+	#sidebar-scroll {
+		max-height: calc(100vh - 2rem);
+		overflow-y: auto;
+		padding-right: 0.125rem;
+	}
+
+	#sidebar-overlay {
+		display: none;
+	}
+
+	@media (max-width: 1279px) {
+		#sidebar-shell {
+			width: var(--sidebar-rail-width);
+			min-width: var(--sidebar-rail-width);
+		}
+
+		#sidebar-rail {
+			display: flex;
+			width: var(--sidebar-rail-width);
+			height: calc(100vh - 2rem);
+			justify-content: center;
+			align-items: flex-start;
+			z-index: 72;
+			position: relative;
+		}
+
+		#sidebar-panel {
+			position: fixed;
+			top: 1rem;
+			left: 0.75rem;
+			bottom: 1rem;
+			width: min(21rem, calc(100vw - 1.5rem));
+			height: auto;
+			transform: translateX(calc(-100% - 1rem));
+			opacity: 0;
+			pointer-events: none;
+			transition: transform 0.22s ease, opacity 0.22s ease;
+			z-index: 75;
+		}
+
+		html.sidebar-open #sidebar-panel {
+			transform: translateX(0);
+			opacity: 1;
+			pointer-events: auto;
+		}
+
+		#sidebar-overlay {
+			display: block;
+			position: fixed;
+			inset: 0;
+			background: rgba(15, 23, 42, 0.24);
+			opacity: 0;
+			pointer-events: none;
+			transition: opacity 0.22s ease;
+			z-index: 74;
+		}
+
+		html.sidebar-open #sidebar-overlay {
+			opacity: 1;
+			pointer-events: auto;
+		}
+	}
+</style>
+
+<script>
+	class AppSidebar extends HTMLElement {
+		constructor() {
+			super();
+			this.mq = window.matchMedia("(max-width: 1279px)");
+			this.onToggle = this.onToggle.bind(this);
+			this.onClose = this.onClose.bind(this);
+			this.onPanelClick = this.onPanelClick.bind(this);
+			this.onKeyDown = this.onKeyDown.bind(this);
+			this.onMediaChange = this.onMediaChange.bind(this);
+		}
+
+		connectedCallback() {
+			this.toggleButton = this.querySelector("#sidebar-toggle");
+			this.overlay = this.querySelector("#sidebar-overlay");
+			this.panel = this.querySelector("#sidebar-panel");
+
+			this.toggleButton?.addEventListener("click", this.onToggle);
+			this.overlay?.addEventListener("click", this.onClose);
+			this.panel?.addEventListener("click", this.onPanelClick);
+			document.addEventListener("keydown", this.onKeyDown);
+			this.mq.addEventListener("change", this.onMediaChange);
+			this.syncState();
+		}
+
+		disconnectedCallback() {
+			this.toggleButton?.removeEventListener("click", this.onToggle);
+			this.overlay?.removeEventListener("click", this.onClose);
+			this.panel?.removeEventListener("click", this.onPanelClick);
+			document.removeEventListener("keydown", this.onKeyDown);
+			this.mq.removeEventListener("change", this.onMediaChange);
+			this.close();
+		}
+
+		isNarrow() {
+			return this.mq.matches;
+		}
+
+		open() {
+			if (!this.isNarrow()) return;
+			document.documentElement.classList.add("sidebar-open");
+			this.syncState();
+		}
+
+		close() {
+			document.documentElement.classList.remove("sidebar-open");
+			this.syncState();
+		}
+
+		onToggle() {
+			if (!this.isNarrow()) return;
+			if (document.documentElement.classList.contains("sidebar-open")) {
+				this.close();
+			} else {
+				this.open();
+			}
+		}
+
+		onClose() {
+			this.close();
+		}
+
+		onPanelClick(event) {
+			if (!this.isNarrow()) return;
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+			if (target.closest("a")) {
+				this.close();
+			}
+		}
+
+		onKeyDown(event) {
+			if (event.key === "Escape" && document.documentElement.classList.contains("sidebar-open")) {
+				this.close();
+			}
+		}
+
+		onMediaChange() {
+			if (!this.isNarrow()) {
+				this.close();
+			}
+			this.syncState();
+		}
+
+		syncState() {
+			const expanded =
+				this.isNarrow() && document.documentElement.classList.contains("sidebar-open");
+			this.toggleButton?.setAttribute("aria-expanded", String(expanded));
+		}
+	}
+
+	if (!customElements.get("app-sidebar")) {
+		customElements.define("app-sidebar", AppSidebar);
+	}
+</script>
